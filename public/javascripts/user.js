@@ -25,6 +25,7 @@
 			});
 		};
 		$scope.add = function(u){
+			console.log('ffffffff');
 			$http.post('/user', u).success(function(resp){
 				$scope.userList = $scope.userList||[];
 				if(resp.status===0){

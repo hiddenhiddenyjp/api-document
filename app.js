@@ -41,6 +41,7 @@ app = express();
     secret: 'api-document-server'
   }));
   //路由
+  console.log('appp');
   app.use(login);
   app.use('/', require('./routes/index'));
   app.use('/project', require('./routes/project'));

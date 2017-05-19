@@ -38,6 +38,7 @@ module.exports = function (req, res, next) {
       else res.send(401, {message:'请重新登陆'});
     } else if('/login'===req.path){
       //登陆接口
+     
       cUsr.find({
         name: req.body.name,
         password: req.body.password

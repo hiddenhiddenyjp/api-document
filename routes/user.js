@@ -7,6 +7,7 @@
     monk = require('monk'),
     db = monk(conf.mongoUrl),
     cUsr = db.get('users');
+
   router.get('/index.html', function (req, res) {
     res.render('user', {
       _id: req.session.user._id,

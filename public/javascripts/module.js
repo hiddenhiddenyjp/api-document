@@ -169,7 +169,34 @@
       }, 5000);
     };
     $scope.saveUrl = function (e) {
+        //$scope.loginApi = 
+        //var str1 = $scope.loginObj.replace(/[\r\n]/g,"").replace(/[ ]/g,"");
+        //var str2 = JSON.stringify({"code":"111111","phone":"13912345675"})
+        //var bLoginUrl = $scope.loginUrl.trim() == '/login';
+        //var bBackendUrl = $scope.backendUrl.trim() == 'http://fws.fesco.com.cn/appserver/';
+        //var bBackendUrl = $scope.backendUrl.trim() == 'http://localhost:2016';
+        //var bLoginObj = str1 == str2;
+        //function  paramCheck(){
+      //     return bLoginUrl && bBackendUrl && bLoginObj;
+        //}
+       
+        $timeout(function () {
+          var dInfo = $(document.getElementById('dInfo'));
+          var aInfo = $(document.getElementById('aInfo'));
+          aInfo.click(function(){
+              dInfo.addClass('hide');
+          });
+          dInfo.removeClass('hide');
+        }, 0);       
+        //console.log(JSON.stringify({"name":"guest","password":"11111"}));
+       // console.log($scope.loginObj == JSON.stringify({"name":"guest","password":"11111"}));
+        
+        //console.log(str1 == str2);
         if ($scope.form.$valid) {
+          if($scope.backendUrl.trim() != "http://fws.fesco.com.cn/appserver"){
+                    $scope.tokenInfo = "服务器地址错误！"
+                    return;
+          };
           $http.put('/module/url', {
             pid: pid,
             backendUrl: $scope.backendUrl,
@@ -177,10 +204,38 @@
             loginObj: $scope.loginObj?JSON.parse($scope.loginObj):''
           }).success(function (res) {
             $scope.backendMessage = '1' === res ? '' : res;
+            if(res.status == 0){
+                $scope.tokenInfo = "token获取成功！";
+                /*$scope.token = res.data.token;
+                $scope.loginTime = res.data.logintime;                
+                $scope.offsetTime = $scope.loginTime-Date.parse(new Date());*/
+                sessionStorage.setItem("token", res.data.token);
+                sessionStorage.setItem("loginTime", res.data.logintime);
+                sessionStorage.setItem("offsetTime", res.data.logintime-Date.parse(new Date()));
+            } else {
+                $scope.tokenInfo = "token获取失败！"
+                sessionStorage.setItem("token", "");
+                sessionStorage.setItem("loginTime", "");
+                sessionStorage.setItem("offsetTime", "");
+            }
+            //window.localStorage.setItem('token',res.token);
           }).error(function (res) {
             $scope.backendMessage = 'URL保存失败';
+            //$scope.tokenInfo = "URL保存失败"；
             console.error(res);
           });
+         /* $scope.address = $scope.backendUrl+$scope.loginUrl;
+          $http.post($scope.address, {            
+            loginObj: $scope.loginObj?JSON.parse($scope.loginObj):''
+          }).success(function (res) {
+            //window.localStorage.setItem('token',res.token);
+            console.log('aaaaaaaa');
+          }).error(function (res) {
+            console.log('bbbbbbbb');
+            console.error(res);
+          });*/
+        } else {
+           $scope.tokenInfo = "服务器地址保存失败！";
         }
     };
     /**
@@ -188,12 +243,22 @@
      * @param  {String} id 接口_id
      * @return {[type]}    [description]
      */
-    $scope.testInterface = function (id) {
+    $scope.testInterface = function (id,bLogin) {
+      // /$scope.bflag = true;
       if(!$scope.backendUrl) {
         $scope.backendMessage = '请填写URL';
       }
       $scope.xhr = true;
-      $http.get('/module/test/' + id + '?pid=' + pid).success(function (res) {
+      //var bHeaders = bLogin==='true' ? { headers:{'token' : window.localStorage.getItem('token')}} : "";
+      var bHeaders = bLogin==='true' ? { 
+                                           headers:{
+                                                 'Fesco-token' : sessionStorage.getItem("token")|| "",
+                                                 'Fesco-offset' : sessionStorage.getItem("offsetTime" || ""),
+                                                 'Fesco-login': sessionStorage.getItem("loginTime" || "")
+                                                  }
+                                      } : "";
+      console.log(bHeaders);
+      $http.get('/module/test/' + id + '?pid=' + pid + '&' + 'bLogin=' + bLogin,bHeaders).success(function (res) {
         $scope.test = {
           id: id,
           result: res.code,
@@ -220,6 +285,7 @@
     $scope.saveTest = function (id) {
       $http.put('/module/save', $scope.test).success(function (res){
         location.reload();
+        console.log(res);
       });
     };
   }]);

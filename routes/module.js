@@ -12,6 +12,12 @@ var debug = require('debug')('module');
 var util = require('./util');
 var cMod = db.get('modules');
 var cInt = db.get('interfaces');
+var jwt = require('jsonwebtoken');
+var token;
+var crypto = require('crypto');
+function md5 (text) {
+  return crypto.createHash('md5').update(text).digest('hex');
+};
 router.get('/index.html', function (req, res) {
   res.render('module', {
     editable: req.session.user.editable,
@@ -19,6 +25,10 @@ router.get('/index.html', function (req, res) {
   });
 }).get('/test/:id', function (req, res) {
   function testInterface(data, headers) {
+    /*console.log(req.params.id+'2626262626');
+     cInt.findById(req.params.id, function (err, data) {
+        console.log(data);
+     });*/
     var def = q.defer();
     var inObject = data.inObject ? JSON.parse(data.inObject) : {};
     var outSchema = JSON.parse(data.outSchema || '{}');
@@ -29,20 +39,34 @@ router.get('/index.html', function (req, res) {
       });
       return;
     }
+    if(!req.headers['fesco-token']&& (req.query.bLogin == 'true')) {
+      res.json({
+        code: -1,
+        message: '请先获取token！'
+      });
+      return;
+    }
     var option = {
       json: true,
       method: data.method.toUpperCase(),
       url: user[req.query.pid].backendUrl + data.url,
       forever: true,
-      headers: headers || {},
+      //headers: headers || {},
+      headers:{
+        'Fesco-Token' : req.headers['fesco-token'],
+        'Fesco-Time': ''+(parseInt(req.headers['fesco-offset']) + Date.parse(new Date())),
+        'Fesco-Sign': md5('fescoApp' + req.headers['fesco-login'] + (parseInt(req.headers['fesco-offset']) + Date.parse(new Date())) + JSON.stringify(inObject))
+      },
       timeout: 5000
     };
+
     if ('get' === data.method) {
       option.qs = inObject;
     } else {
-      option.form = inObject;
+      option.body = inObject;
     }
     var begin = _.now();
+    console.log(option.headers);
     request(option, function (e, r, body) {
       if (e || 200 !== r.statusCode) {
         def.resolve({
@@ -61,6 +85,7 @@ router.get('/index.html', function (req, res) {
               message: message,
               time: _.now() - begin
             });
+
           } else {
             def.resolve({
               code: -1,
@@ -92,6 +117,13 @@ router.get('/index.html', function (req, res) {
       if (e) {
         def.reject(e);
       } else {
+         /*token = jwt.sign(obj.loginObj, 'app.get(superSecret)', {
+                         'expiresIn': 1440 // 设置过期时间
+        });*/
+         /*var headers = _.extend({
+          Cookie : cookie
+        }, _.extend(obj.inObject, body))*/
+        //console.log(token);
         var cookie = r.headers['set-cookie'] ? r.headers['set-cookie'].join('; ') : '';
         var headers = _.extend({
           Cookie : cookie
@@ -113,6 +145,7 @@ router.get('/index.html', function (req, res) {
         q.when(auth()).then(function (result) {
           return testInterface(data, result);
         }, function (error) {
+          console.log(error);
           res.status(500).json(error);
         }).then(function (result) {
           res.json(result);
@@ -236,19 +269,101 @@ router.get('/index.html', function (req, res) {
       message: '请先登录！'
     });
   } else {
+    console.log('ttttttttttt');
     var cUsr = db.get('users');
     var urlObj = {};
     urlObj[req.body.pid] = _.omit(req.body, req.body.pid);
+    var tempId = req.session.user._id;
     cUsr.update({
       _id: req.session.user._id
     }, {
       $set: urlObj
     }, function (err, data) {
+      console.log('aaaa');
       if (err) {
         res.status(500).json(err);
       } else {
-        req.session.user = null;
-        res.json(data);
+         req.session.user = null;
+          
+
+
+         var option = {
+            json: true,
+            method: 'POST',
+            url: req.body.backendUrl + req.body.loginUrl,
+            //forever: true,
+            //timeout: 5000,
+            headers: {
+              "content-type": "application/json",
+            }
+         };
+         if (option.method == 'GET') {
+             option.qs = req.body.loginObj;
+         }
+         else {
+             option.body =  req.body.loginObj;
+         }
+         //console.log(option);
+         request(option, function (e, r, body) {
+           // console.log(r.statusCode);
+            //console.log(r.body);
+            if (e || 200 !== r.statusCode) {
+              if(r){
+                console.log(r.statusCode);
+                res.json(r.statusCode);
+              }
+            } else {
+                res.json(r.body);
+            }
+         });
+
+
+
+        /*var str1 = $scope.loginObj.replace(/[\r\n]/g,"").replace(/[ ]/g,"");
+        var str2 = JSON.stringify({"name":"guest","password":"11111"})
+        var bLoginUrl = $scope.loginUrl.trim() == '/getToken';
+        var bBackendUrl = $scope.backendUrl.trim() == 'http://localhost:2016';
+        var bLoginObj = str1 == str2;
+        function  paramCheck(){
+           return bLoginUrl && bBackendUrl && bLoginObj;
+        }
+*/  
+
+        /*if(req.body.loginObj&&req.body.loginUrl&&req.body.backendUrl){
+           console.log(JSON.stringify);
+           var str1 = JSON.stringify(req.body.loginObj).replace(/[\r\n]/g,"").replace(/[ ]/g,"");
+           var str2 = JSON.stringify({"code":"111111","phone":"13912345675"});
+           var bLoginUrl = req.body.loginUrl.trim() == '/login';
+           var bBackendUrl = req.body.backendUrl.trim() == 'http://fws.fesco.com.cn/appserver/';
+           //var bBackendUrl = $scope.backendUrl.trim() == 'http://localhost:2016';
+           var bLoginObj = str1 == str2;
+           if(bLoginUrl && bBackendUrl && bLoginObj){
+               token = jwt.sign(req.body.loginObj, 'app.get(superSecret)', {
+                             'expiresIn': 1440 // 设置过期时间
+               });
+               res.json({
+                  success: true,
+                  message: 'access token success!',
+                  token: token
+               })
+           }*/
+
+
+        /*cUsr.update({
+          _id: req.session.user._id
+        }, {
+          $set: token
+        },function(err,data){
+            if (err) {
+               res.status(500).json(err);
+            } else {
+               console.log(data);
+            }
+        })*/
+       
+      /*}else{
+          console.log(data);
+      }*/
       }
     });
   }
